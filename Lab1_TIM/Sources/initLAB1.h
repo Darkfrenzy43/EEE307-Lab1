@@ -7,6 +7,8 @@
 ** Description: Header file for LAB1
 **
 ** Revision History: Rev 0: Jan 2023
+ *
+ * Group Members: NCdt Cho and OCdt Liethan Velasco
 **
 ******************************************************************************** */
 
@@ -21,13 +23,15 @@
 #define SPKR_ON    0b01000000     // TC3 toggle on mask
 #define SPEAKER       0b00001000  // TC3 mask
 #define TONEDURATION  0b00000001  // TC0 mask
+
+// ------ Added these masks below for the button interrupts -----
 #define BUT_CH7_M     0b10000000  // TC7 mask
 #define BUT_CH6_M     0b01000000  // TC7 mask
 #define BUT_CH5_M     0b00100000  // TC7 mask
 #define BUT_CH4_M     0b00010000  // TC7 mask
 
 
-// Constants used for setting active high LEDs
+// Constants used for setting active high LEDs. We've added a few extra ones for the button ISRs
 #define LED1     0x80
 #define LED2     0x40
 #define LED3     0x20

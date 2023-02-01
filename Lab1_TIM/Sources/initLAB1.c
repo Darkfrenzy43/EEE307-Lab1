@@ -1,3 +1,46 @@
+/*
+ *      Description:
+ *
+ *          This is the initLAB1.c file which contains the C code for the Lab 1 Assignment.
+ *
+ *          This program makes an HCS12 board transmit a morse code (defined in main.c) via
+ *          its speakers and its lights.
+ *
+ *          Further, when the morse code is finished being transmitted, all the illuminated lights
+ *          can only be switched off if they are pressed in a specific sequence.
+ *
+ *          As expected, the above is made possible through input capture and output capture interrutps.
+ *
+ *      Notes:
+ *
+ *          1 -  With help from Techs, suspect that perhaps not setting channels port T 3:0 explicitly to
+ *          disconnect with their respective timer channels may have caused the speaker's inconsistent playing.
+ *
+ *          The original code for this was [TCTL2 &= SPKR_OFF --> TCTL2 &= 0b00111111].
+ *
+ *          It was switched with [TCTL2 = 0x00]. After the switch, the speaker now works.
+ *
+ *          disconnect setting channels 3:0 tchannel to one by setting
+ *          TCTL2(1:0) to SET may have been the issue.
+ *           Below we force them all to be zero (disconnect) upon initialization, which suprisingly fixed the problem.
+ *
+ *          Logically, having TCTL2 &= SPKR_OFF should not have been an issue.
+ *          However, in practicality, this happened to cause problems.
+ *
+ *          2 - Surprisingly, and still unknowingly, including the TCTL3 = 0x00; line of code caused the speaker to
+ *          once again inconsistently play - the exact same issue from Notes - 1.
+ *
+ *          However, the students were quick to figure out that discarding this line of code solved the problem.
+ *          It was still kept in comments in the function in order to acknowledge this step as instructed by
+ *          the listed requirements.
+ *
+ *
+ *
+ *      Authors: NCdt Eric Cho and OCdt Liethan Velasco
+ *      Due Date: Feb 6, 2023
+ */
+
+
 /********************************************************************************
 *  File:  initLAB1.c
 *  Description: Contains declarations and function definitions
@@ -30,8 +73,9 @@ struct MorseCode *currentCode;  // Pointer to current code member
 
 void setECLK_MODE(void) 
   {
-  // REQUIREMENTS: Set SYNR and REFDV values to obtain the desired ECLK rate
+  // REQUIREMENTS: Set SYNR and REFDV values to obtain the desired ECLK rate of 4MHz
 
+  // Setting the values of SYNR and REFDV as required
     SYNR = 0x00;
    REFDV = 0x00;
    
@@ -64,7 +108,7 @@ void initTIM(void)
   // enable TIM
   TSCR1 = TSCR1_TEN_MASK;
   
-  // prescale clk
+  // prescale clk to 2^6 = 64
   TSCR2 = 0x06; //00000110
   
   // disable all TIM interrupts
@@ -88,6 +132,7 @@ void initPTM(void)
   
   // Turns off LEDs
   PTM = 0x00;
+
     }
     
     
@@ -102,6 +147,7 @@ void initPTT(void)
     
   // Initialize pins PTT(7:4) as input, and pin PTT(3) as output
   DDRT = 0x08;
+
     }
     
     
@@ -117,7 +163,7 @@ void initPTT(void)
 ***********************************************************************************/       
 void setLEDs(unsigned char leds)
  {
-   // Turn LEDS on/off by setting it to new bit pattern
+   // Turn LEDS on/off by setting it to specified bit pattern
    PTM = leds;
  }
 
@@ -143,14 +189,10 @@ void initCode(struct MorseCode *code)
   
   //Enable Output Compare channels, disconnect speaker. Ch(7:4) (for buttons) default to input 
   TIOS |= SPEAKER | TONEDURATION;
-  
-  
-  
-  /* NOTE: With help from Techs, deduced that perhaps setting the TC1 channel to one by setting TCTL2(1:0) to SET may have been the issue. 
-    Below we force them all to be zero (disconnect) upon initialization, which suprisingly fixed the problem.
-    
-    Logically, having TCTL2 &= SPKR_OFF should not be an issue, yet in praticallity it happened to be the issue in this case. */
-  //TCTL2 &= SPKR_OFF;
+
+
+  // Setting all the values in TCTL2 to be 0 upon initialization --> port T channels 3:0 are disconnected.
+  // Refer to Notes - 1 for more information about this.
   TCTL2 = 0x00;
   
   //Disable Speaker and Duration channel interrupts,
@@ -159,20 +201,14 @@ void initCode(struct MorseCode *code)
   //Clear Speaker and Duration channel interrupt flags,
   TFLG1 |= SPEAKER | TONEDURATION;
   
-  //Set LED pattern to 1111.
-  setLEDs(0xF0);                     // Swapped from 0x0F to 0xF0 to change PTM(7:4)
+  //Set LED pattern to 1111 .
+  setLEDs(0xF0);
+
   
-  /*** Additional code for buttons ***
-  *  REQUIREMENTS:
-  *  - Set buttons for Input Capture
-  *  - Disconnect Input Capture of buttons
-  *  - Disarm interrupts by buttons
-  *  - Clear button channels interrupt flags  */ 
-  
-  
-  // Ch(7:4) in TIOS automatically set to 0 (input) 
+  // Ch(7:4) in TIOS automatically set to 0 (input)!
   
   // Disconnect all Input Capture of buttons --> THIS CAUSES THE SAME ISSUE! NEED TO EXCLUDE
+  // Refer to Notes - 2 for a quick note on this.
   // TCTL3 = 0x00;
   
   // Disarm interrupts of buttons
@@ -181,7 +217,6 @@ void initCode(struct MorseCode *code)
   // Clear button channel flags
   TFLG1 |= 0xF0;
 
-   
   }
   
 /*********************************************************************************
@@ -210,14 +245,14 @@ void sendCode(void)
   setLEDs(currentCode -> leds);  
 
   //Enable interrupts for Speaker and Duration channels 
-  TIE |= SPEAKER | TONEDURATION;                            // Changed from SPEAKER_TC (the register) to SPEAKER (the mask)
-                                                            // Changed from DURATION_TC (the register) to TONEDURATION (the mask) 
-    
+  TIE |= SPEAKER | TONEDURATION;
+
   //Clear interrupt flags for Speaker and Duration channels
   TFLG1 |= SPEAKER | TONEDURATION;  
   
   //Enable Speaker toggle without affecting other channels
-  TCTL2 |= SPKR_ON;   
+  TCTL2 |= SPKR_ON;
+
   }
   
  
@@ -234,6 +269,7 @@ void sendCode(void)
 *********************************************************************************/                
 void stopCode(void)
   {
+
   //Disable speaker and duration interrupts,
   TIE &= ~(SPEAKER | TONEDURATION);
   
@@ -244,21 +280,15 @@ void stopCode(void)
   TCTL2 &= SPKR_OFF;
   
   //Turn ON all LEDs to indicate end of code,
-  setLEDs(~LEDSOFF);  
- 
-  /*** Additional code for buttons ***
-  * REQUIREMENTS:
-  *  - Arm SW1 interrupts
-  *  - Clear button channels interrupt flags
-  *  - Enable fallling edge detection of buttons */
+  setLEDs(~LEDSOFF);
   
-  // Arming SW1 interrupts
+  // Arming SW1 interrupt on ch4 - only this interrupt can be "invoked" now.
   TIE = BUT_CH4_M;
   
   // Clear button channel interrupt flags
   TFLG1 |= 0xF0;
   
-  // Have button ISRs detect falling edge
+  // Here, set button ISRs to only detect and run on falling edge
   TCTL3 = 0xAA;
 
   } 
@@ -299,8 +329,7 @@ void interrupt VectorNumber_Vtimch0 toneDurationISR(void)
         
         // Finally, advance pointer to next morse code through incrementation
         currentCode++;
-                              
-        
+
      }
 
   }                                 
@@ -318,10 +347,9 @@ void interrupt VectorNumber_Vtimch0 toneDurationISR(void)
 
 void interrupt VectorNumber_Vtimch3 SpeakerISR(void)
   {
-     /* Insert your code here  */
-          
-        // Ack speakerISR's interrupt flag
-        TFLG1 |= SPEAKER;
+
+     // Ack speakerISR's interrupt flag
+     TFLG1 |= SPEAKER;
      
      // If current tone is blank, turn off speaker toggle (so we don't hear anything)
      if (currentCode -> tone == blank) {
@@ -330,7 +358,7 @@ void interrupt VectorNumber_Vtimch3 SpeakerISR(void)
       
      }
      
-     else {   // Otherwise, prep for the next speakerISR
+     else {   // Otherwise, turn on/keep playing speaker, and set the tone duration
      
         // Turn on speaker toggle
         TCTL2 = (TCTL2 & 0x3F) | SPKR_ON;     
@@ -354,7 +382,12 @@ void interrupt VectorNumber_Vtimch3 SpeakerISR(void)
 *  Outputs: LED pattern of (X I I I)
 * ********************************************************************************/           
 void interrupt VectorNumber_Vtimch4 SW1_ISR(void)
-  { 
+  {
+
+    // When this runs, only allow SW2's ISR on ch5 to be invoked next.
+    // Also, turn off LEDs so SW1's light is off.
+    // Finally, acknowledge the just called interrupt.
+
      TIE = BUT_CH5_M;
      setLEDs(LED234);
      TFLG1 |= BUT_CH4_M;
@@ -370,7 +403,12 @@ void interrupt VectorNumber_Vtimch4 SW1_ISR(void)
 *  Outputs: LED pattern of (X X I I)
 * ********************************************************************************/   
 void interrupt VectorNumber_Vtimch5 SW2_ISR(void)
-  { 
+  {
+
+    // When this runs, only allow SW3's ISR on ch6 to be invoked next.
+    // Also, turn off LEDs so SW2's light is also off.
+    // Finally, acknowledge the just called interrupt.
+
      TIE = BUT_CH6_M;
      setLEDs(LED34);
      TFLG1 |= BUT_CH5_M;
@@ -378,14 +416,19 @@ void interrupt VectorNumber_Vtimch5 SW2_ISR(void)
 
 
 /*********************************************************************************
-*  ISR:  SW1_ISR
+*  ISR:  SW3_ISR
 *  REQUIREMENTS: - Arm/Disarm switches of interest
 *                - Set LEDs to required pattern
 *                - Clear relevant interrupt flags
 *  Outputs: LED pattern of (X X X I)
 * ********************************************************************************/   
 void interrupt VectorNumber_Vtimch6 SW3_ISR(void)
-  {                            
+  {
+
+      // When this runs, only allow SW4's ISR on ch7 to be invoked next.
+      // Also, turn off LEDs so SW3's light is also off.
+      // Finally, acknowledge the just called interrupt.
+
      TIE = BUT_CH7_M;
      setLEDs(LED4);
      TFLG1 |= BUT_CH6_M;
@@ -393,21 +436,24 @@ void interrupt VectorNumber_Vtimch6 SW3_ISR(void)
 
 
 /*********************************************************************************
-*  ISR:  SW1_ISR
+*  ISR:  SW4_ISR
 *  REQUIREMENTS: - Arm/Disarm switches of interest
 *                - Set LEDs to required pattern
 *                - Clear relevant interrupt flags
 *  Outputs: LED pattern of (X X X X)
 * ********************************************************************************/   
 void interrupt VectorNumber_Vtimch7 SW4_ISR(void)
-  { 
+  {
+
+      // When this runs, disable all ISRs on all channels.
+      // Also, turn off LEDs so SW4's light is also off. At this point, should be all off.
+      // Finally, acknowledge the just called interrupt.
+
      TIE = 0x00;
      setLEDs(LEDSOFF);
      TFLG1 |= BUT_CH7_M;
   }
-  
-  
-  
+
    
 /****** End of PRAGMA ******/
 #pragma CODE_SEG DEFAULT 
