@@ -41,12 +41,12 @@
 #define LEDSOFF  0x00
 
 // Tone, tone duration (based on ECLK=4MHz/64) and led pattern 
-#define dot   32   // 500 Hz tone
-#define dash  64   // 250 Hz tone
+#define dot   32   // 1000 Hz tone
+#define dash  64   // 500 Hz tone
 #define blank 1    // value need to be >0; 
 #define brk 0      // indicates end of code to transmit
-#define dot_duration  9000 // 256 msec
-#define dash_duration 4*dot_duration
+#define dot_duration  9000 // 145 msec
+#define dash_duration 4*dot_duration // 580 ms
 #define blank_duration dot_duration
 #define brk_duration dot_duration
 #define dotLED   LED4
